@@ -1,0 +1,47 @@
+{
+  "Comment": "Workflow de validação de arquivos",
+  "StartAt": "ValidarArquivo",
+  "States": {
+    "ValidarArquivo": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:us-east-1:000000000000:function:ValidaArquivo",
+      "ResultPath": "$.validacao",
+      "Next": "VerificaResultado"
+    },
+    "VerificaResultado": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.validacao.status",
+          "StringEquals": "OK",
+          "Next": "SalvarNoDynamoDB"
+        }
+      ],
+      "Default": "EnviarParaSQS"
+    },
+    "SalvarNoDynamoDB": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:putItem",
+      "Parameters": {
+        "TableName": "ArquivosValidados",
+        "Item": {
+          "FileName": { "S.$": "$.validacao.fileName" },
+          "Timestamp": { "S.$": "$.validacao.timestamp" }
+        }
+      },
+      "Next": "Fim"
+    },
+    "EnviarParaSQS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "http://localhost:4566/000000000000/ArquivosInvalidos",
+        "MessageBody.$": "$"
+      },
+      "Next": "Fim"
+    },
+    "Fim": {
+      "Type": "Succeed"
+    }
+  }
+}
